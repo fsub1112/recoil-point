@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recoil Point - Physics Platformer</title>
+    <style>
+        :root {
+            --color-bg-primary: #1f2121;
+            --color-surface: #262828;
+            --color-text: #f5f5f5;
+            --color-primary: #32b8c6;
+            --color-accent-rust: #c86432;
+            --color-accent-sludge: #344e41;
+            --focus-ring: 0 0 0 3px rgba(50, 184, 198, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--color-bg-primary);
+            color: var(--color-text);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #1a1a1a 0%, #1f2121 50%, #2a2a2a 100%);
+            display: flex;
+            flex-direction: column;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: calc(100% - 120px);
+            background: #0a0a0a;
+            border-bottom: 2px solid var(--color-accent-rust);
+        }
+
+        #hud {
+            height: 50px;
+            background: var(--color-surface);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        #controls {
+            height: 70px;
+            background: rgba(0, 0, 0, 0.5);
+            border-top: 1px solid rgba(50, 184, 198, 0.3);
+            padding: 10px 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: rgba(245, 245, 245, 0.7);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            align-items: center;
+        }
+
+        .control-key {
+            color: var(--color-primary);
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .control-label {
+            color: rgba(245, 245, 245, 0.5);
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .hud-section {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .hud-label {
+            color: var(--color-text-secondary, rgba(245, 245, 245, 0.6));
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .hud-value {
+            color: var(--color-primary);
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        #cooldown-visual {
+            width: 50px;
+            height: 50px;
+            border: 2px solid var(--color-accent-rust);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            position: relative;
+            background: rgba(200, 100, 50, 0.1);
+            font-size: 12px;
+        }
+
+        #cooldown-visual.ready {
+            border-color: #2db846;
+            box-shadow: 0 0 10px rgba(45, 184, 70, 0.5);
+        }
+
+        .menu-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.98);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .menu-title {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            color: var(--color-primary);
+            text-shadow: 0 0 20px rgba(50, 184, 198, 0.5);
+        }
+
+        .menu-subtitle {
+            font-size: 18px;
+            color: var(--color-accent-rust);
+            text-align: center;
+        }
+
+        .button {
+            padding: 12px 32px;
+            font-size: 16px;
+            background: var(--color-primary);
+            color: #1f2121;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .button:hover {
+            background: #2a9aaa;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(50, 184, 198, 0.3);
+        }
+
+        .help-text {
+            font-size: 13px;
+            color: rgba(245, 245, 245, 0.7);
+            text-align: center;
+            max-width: 700px;
+            line-height: 1.8;
+        }
+
+        .layer-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 11px;
+            color: var(--color-primary);
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(50, 184, 198, 0.3);
+            pointer-events: none;
+        }
+
+        .fall-indicator {
+            position: absolute;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 20px;
+            color: #ff5459;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            text-shadow: 0 0 15px rgba(255, 84, 89, 0.8);
+            pointer-events: none;
+            display: none;
+        }
+
+        .fall-indicator.active {
+            display: block;
+            animation: pulse 0.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .aim-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 11px;
+            color: var(--color-primary);
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(50, 184, 198, 0.3);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div class="layer-indicator" id="layer-indicator">LAYER 1: FESTERING SLUDGE</div>
+        <div class="aim-indicator" id="aim-indicator">AIM: UP</div>
+        <div class="fall-indicator" id="fall-indicator">FALLING: 0m</div>
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="hud">
+            <div class="hud-section">
+                <div class="hud-label">Height</div>
+                <div class="hud-value" id="height-display">0m / 800m</div>
+            </div>
+            <div class="hud-section">
+                <div class="hud-label">Velocity</div>
+                <div class="hud-value" id="velocity-display">0 m/s</div>
+            </div>
+            <div id="cooldown-visual">
+                <span id="cooldown-timer">READY</span>
+            </div>
+            <div class="hud-section">
+                <div class="hud-label">Status</div>
+                <div class="hud-value" id="status-display">Ready</div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <div class="control-item">
+                <span class="control-key">W / ↑</span>
+                <span class="control-label">Aim Up</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">A / ←</span>
+                <span class="control-label">Aim Left</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">S / ↓</span>
+                <span class="control-label">Aim Down</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">D / →</span>
+                <span class="control-label">Aim Right</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">SPACE / ENTER</span>
+                <span class="control-label">Fire</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">ESC</span>
+                <span class="control-label">Menu</span>
+            </div>
+        </div>
+
+        <div class="menu-overlay" id="main-menu">
+            <div class="menu-title">RECOIL POINT</div>
+            <div class="menu-subtitle">Futility Awaits</div>
+            <div class="help-text">
+                <strong>Keyboard Controls:</strong><br>
+                W/A/S/D or Arrow Keys = Aim in 4 directions<br>
+                SPACE or ENTER = Fire Blunderbuss<br>
+                ESC = Return to Menu<br>
+                <br>
+                <strong>Goal:</strong> Climb 800m to the Serene Island<br>
+                Fall and lose all progress. No checkpoints.<br>
+                <br>
+                <em>Mastery through suffering.</em>
+            </div>
+            <button class="button" id="start-btn">Start Game</button>
+        </div>
+
+        <div class="menu-overlay" id="game-over-menu" style="display: none;">
+            <div class="menu-title">You Fell</div>
+            <div class="menu-subtitle" id="fall-height-display"></div>
+            <div class="help-text" id="narrator-quote"></div>
+            <button class="button" id="restart-btn">Climb Again</button>
+        </div>
+
+        <div class="menu-overlay" id="victory-menu" style="display: none;">
+            <div class="menu-title">You Survived</div>
+            <div class="menu-subtitle">The Serene Island Awaits</div>
+            <div class="help-text">
+                After countless falls and futile struggles,<br>
+                you sit in your barrel on a floating island,<br>
+                gazing down at the world below.<br>
+                <br>
+                <em>The climb was the point. The arrival is numbness.</em>
+            </div>
+            <button class="button" id="restart-victory-btn">Climb Again</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/2.0.19/matter.min.js"></script>
+    <script>
+        // Wait for Matter.js to fully load
+        const waitForMatter = () => {
+            if (typeof Matter === 'undefined') {
+                setTimeout(waitForMatter, 100);
+                return;
+            }
+            initGame();
+        };
+
+        function initGame() {
+            const Engine = Matter.Engine;
+            const World = Matter.World;
+            const Bodies = Matter.Bodies;
+            const Body = Matter.Body;
+
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - 120;
+
+            const engine = Engine.create();
+            engine.world.gravity.y = 30; // Downward gravity
+            engine.world.gravity.x = 0;
+
+            let gameState = {
+                isRunning: false,
+                maxHeight: 0,
+                currentHeight: 0,
+                cooldownRemaining: 0,
+                aimAngle: -Math.PI / 2, // Start aiming up
+                isFalling: false,
+                fallStartHeight: 0,
+                currentLayer: 1,
+                hasReachedVictory: false,
+                aimDirection: 'UP'
+            };
+
+            const keys = {};
+            const COOLDOWN_DURATION = 1.5;
+            const IMPULSE_SOLID = 25;
+            const IMPULSE_AIR = 8;
+
+            // Create barrel (player)
+            const barrel = Bodies.circle(canvas.width / 2, 100, 20, {
+                density: 0.04,
+                friction: 0.5,
+                restitution: 0.2,
+                label: 'barrel',
+                frictionAir: 0.01
+            });
+            World.add(engine.world, barrel);
+
+            // Create ground
+            const ground = Bodies.rectangle(canvas.width / 2, canvas.height - 20, canvas.width + 200, 40, { 
+                isStatic: true,
+                label: 'ground'
+            });
+            World.add(engine.world, ground);
+
+            // Create platforms
+            const platforms = [];
+            function createPlatform(x, y, width, height) {
+                const platform = Bodies.rectangle(x, y, width, height, { 
+                    isStatic: true,
+                    label: 'platform'
+                });
+                platforms.push(platform);
+                World.add(engine.world, platform);
+            }
+
+            // Layer 1 platforms
+            createPlatform(150, 150, 120, 20);
+            createPlatform(canvas.width - 150, 220, 120, 20);
+            createPlatform(canvas.width / 2, 300, 100, 20);
+            createPlatform(120, 380, 140, 20);
+            createPlatform(canvas.width - 120, 450, 110, 20);
+            createPlatform(canvas.width / 2, 530, 130, 20);
+            createPlatform(200, 600, 100, 20);
+            createPlatform(canvas.width - 200, 670, 120, 20);
+
+            // Sludge hazard
+            const sludge = Bodies.rectangle(canvas.width / 2, canvas.height - 10, canvas.width, 20, {
+                isStatic: true,
+                label: 'sludge'
+            });
+            World.add(engine.world, sludge);
+
+            function updateAiming() {
+                let aimX = 0;
+                let aimY = 0;
+
+                if (keys['w'] || keys['ArrowUp']) aimY = -1;
+                if (keys['s'] || keys['ArrowDown']) aimY = 1;
+                if (keys['a'] || keys['ArrowLeft']) aimX = -1;
+                if (keys['d'] || keys['ArrowRight']) aimX = 1;
+
+                if (aimX !== 0 || aimY !== 0) {
+                    gameState.aimAngle = Math.atan2(aimY, aimX);
+                    
+                    let dirLabel = 'UP';
+                    if (aimX === 1 && aimY === 0) dirLabel = 'RIGHT';
+                    else if (aimX === -1 && aimY === 0) dirLabel = 'LEFT';
+                    else if (aimX === 0 && aimY === 1) dirLabel = 'DOWN';
+                    else if (aimX === 1 && aimY === -1) dirLabel = 'UP-RIGHT';
+                    else if (aimX === -1 && aimY === -1) dirLabel = 'UP-LEFT';
+                    else if (aimX === 1 && aimY === 1) dirLabel = 'DOWN-RIGHT';
+                    else if (aimX === -1 && aimY === 1) dirLabel = 'DOWN-LEFT';
+                    
+                    document.getElementById('aim-indicator').textContent = 'AIM: ' + dirLabel;
+                }
+            }
+
+            function fireBlunderbuss() {
+                if (gameState.cooldownRemaining > 0 || !gameState.isRunning) return;
+
+                const aimX = Math.cos(gameState.aimAngle);
+                const aimY = Math.sin(gameState.aimAngle);
+
+                let hitSolid = false;
+                for (let p of platforms) {
+                    const dist = Math.sqrt(
+                        Math.pow(p.position.x - barrel.position.x, 2) +
+                        Math.pow(p.position.y - barrel.position.y, 2)
+                    );
+                    if (dist < 120) {
+                        hitSolid = true;
+                        break;
+                    }
+                }
+
+                if (!hitSolid) {
+                    const distToGround = Math.abs(barrel.position.y - (canvas.height - 20));
+                    if (distToGround < 100) hitSolid = true;
+                }
+
+                const impulse = hitSolid ? IMPULSE_SOLID : IMPULSE_AIR;
+                const velocityX = -aimX * impulse;
+                const velocityY = -aimY * impulse;
+
+                Body.setVelocity(barrel, { x: velocityX, y: velocityY });
+
+                const speed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+                if (speed > 22) {
+                    const scale = 22 / speed;
+                    Body.setVelocity(barrel, { x: velocityX * scale, y: velocityY * scale });
+                }
+
+                gameState.cooldownRemaining = COOLDOWN_DURATION;
+            }
+
+            function updateGameState() {
+                if (!gameState.isRunning) return;
+
+                gameState.currentHeight = Math.max(0, canvas.height - barrel.position.y);
+                gameState.maxHeight = Math.max(gameState.maxHeight, gameState.currentHeight);
+
+                if (barrel.position.y > canvas.height + 50) {
+                    endGame();
+                    return;
+                }
+
+                if (gameState.currentHeight >= 800 && !gameState.hasReachedVictory) {
+                    gameState.hasReachedVictory = true;
+                    victoryScreen();
+                    return;
+                }
+
+                if (gameState.currentHeight < 150) {
+                    gameState.currentLayer = 1;
+                    document.getElementById('layer-indicator').textContent = 'LAYER 1: FESTERING SLUDGE';
+                } else if (gameState.currentHeight < 350) {
+                    gameState.currentLayer = 2;
+                    document.getElementById('layer-indicator').textContent = 'LAYER 2: INDUSTRIAL HELL';
+                } else if (gameState.currentHeight < 600) {
+                    gameState.currentLayer = 3;
+                    document.getElementById('layer-indicator').textContent = 'LAYER 3: SURREAL JUNK';
+                } else {
+                    gameState.currentLayer = 4;
+                    document.getElementById('layer-indicator').textContent = 'LAYER 4: VOID SERENITY';
+                }
+
+                if (gameState.cooldownRemaining > 0) {
+                    gameState.cooldownRemaining -= 1 / 60;
+                }
+
+                if (barrel.velocity.y > 10) {
+                    gameState.isFalling = true;
+                    gameState.fallStartHeight = gameState.currentHeight;
+                } else {
+                    gameState.isFalling = false;
+                }
+
+                document.getElementById('height-display').textContent = 
+                    `${Math.floor(gameState.currentHeight)}m / 800m`;
+                document.getElementById('velocity-display').textContent = 
+                    `${Math.abs(Math.floor(barrel.velocity.y))} m/s`;
+
+                const cooldownVisual = document.getElementById('cooldown-visual');
+                if (gameState.cooldownRemaining <= 0.1) {
+                    cooldownVisual.classList.add('ready');
+                    document.getElementById('cooldown-timer').textContent = 'READY';
+                    document.getElementById('status-display').textContent = 'READY';
+                } else {
+                    cooldownVisual.classList.remove('ready');
+                    document.getElementById('cooldown-timer').textContent = Math.max(0, gameState.cooldownRemaining.toFixed(1));
+                    document.getElementById('status-display').textContent = 'CHARGING';
+                }
+
+                if (gameState.isFalling && barrel.velocity.y > 15) {
+                    const fallDistance = gameState.fallStartHeight - gameState.currentHeight;
+                    if (fallDistance > 50) {
+                        document.getElementById('fall-indicator').textContent = `FALLING: ${Math.floor(fallDistance)}m`;
+                        document.getElementById('fall-indicator').classList.add('active');
+                    }
+                } else {
+                    document.getElementById('fall-indicator').classList.remove('active');
+                }
+            }
+
+            function endGame() {
+                gameState.isRunning = false;
+                const narratorQuotes = {
+                    100: "Even gravity mocks your efforts.",
+                    200: "Momentum is conserved. Optimism, apparently, is not.",
+                    400: "For every action, there is an equal and opposite reaction. Usually downward.",
+                    800: "[Long pause] ...again."
+                };
+
+                let quote = "Physics is cruel.";
+                if (gameState.maxHeight >= 400) quote = narratorQuotes[400];
+                else if (gameState.maxHeight >= 200) quote = narratorQuotes[200];
+                else if (gameState.maxHeight >= 100) quote = narratorQuotes[100];
+
+                document.getElementById('fall-height-display').textContent = 
+                    `Reached ${Math.floor(gameState.maxHeight)}m`;
+                document.getElementById('narrator-quote').textContent = quote;
+                document.getElementById('game-over-menu').style.display = 'flex';
+            }
+
+            function victoryScreen() {
+                gameState.isRunning = false;
+                document.getElementById('victory-menu').style.display = 'flex';
+            }
+
+            function startGame() {
+                gameState.isRunning = true;
+                gameState.maxHeight = 0;
+                gameState.hasReachedVictory = false;
+                gameState.cooldownRemaining = 0;
+                document.getElementById('main-menu').style.display = 'none';
+                document.getElementById('game-over-menu').style.display = 'none';
+                document.getElementById('victory-menu').style.display = 'none';
+
+                Body.setPosition(barrel, { x: canvas.width / 2, y: 100 });
+                Body.setVelocity(barrel, { x: 0, y: 0 });
+                Body.setAngularVelocity(barrel, 0);
+            }
+
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            document.getElementById('restart-btn').addEventListener('click', startGame);
+            document.getElementById('restart-victory-btn').addEventListener('click', startGame);
+
+            document.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                keys[key] = true;
+                keys[e.key] = true;
+
+                if (key === ' ' || key === 'enter') {
+                    e.preventDefault();
+                    fireBlunderbuss();
+                }
+                if (key === 'escape') {
+                    if (gameState.isRunning) {
+                        gameState.isRunning = false;
+                        document.getElementById('main-menu').style.display = 'flex';
+                    }
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                const key = e.key.toLowerCase();
+                keys[key] = false;
+                keys[e.key] = false;
+            });
+
+            function render() {
+                let bgColor = '#2a1a15';
+                if (gameState.currentLayer === 2) bgColor = '#1a2a2a';
+                else if (gameState.currentLayer === 3) bgColor = '#2a1a2a';
+                else if (gameState.currentLayer === 4) bgColor = '#0a0a15';
+
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw platforms
+                ctx.fillStyle = '#8b5a2b';
+                ctx.strokeStyle = '#c86432';
+                ctx.lineWidth = 2;
+                for (let p of platforms) {
+                    const vertices = p.vertices;
+                    ctx.beginPath();
+                    ctx.moveTo(vertices[0].x, vertices[0].y);
+                    for (let i = 1; i < vertices.length; i++) {
+                        ctx.lineTo(vertices[i].x, vertices[i].y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                // Draw ground
+                ctx.fillStyle = '#3d3d3d';
+                ctx.strokeStyle = '#999';
+                ctx.lineWidth = 2;
+                const groundVertices = ground.vertices;
+                ctx.beginPath();
+                ctx.moveTo(groundVertices[0].x, groundVertices[0].y);
+                for (let i = 1; i < groundVertices.length; i++) {
+                    ctx.lineTo(groundVertices[i].x, groundVertices[i].y);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Draw sludge
+                ctx.fillStyle = 'rgba(52, 78, 65, 0.7)';
+                const sludgeVertices = sludge.vertices;
+                ctx.beginPath();
+                ctx.moveTo(sludgeVertices[0].x, sludgeVertices[0].y);
+                for (let i = 1; i < sludgeVertices.length; i++) {
+                    ctx.lineTo(sludgeVertices[i].x, sludgeVertices[i].y);
+                }
+                ctx.closePath();
+                ctx.fill();
+
+                // Draw barrel
+                ctx.save();
+                ctx.translate(barrel.position.x, barrel.position.y);
+                ctx.rotate(barrel.angle);
+
+                ctx.fillStyle = '#968470';
+                ctx.strokeStyle = '#c86432';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(200, 100, 50, 0.3)';
+                for (let i = 0; i < 2; i++) {
+                    ctx.fillRect(-12 + i * 12, -12, 6, 24);
+                }
+
+                ctx.fillStyle = '#96c8f0';
+                ctx.strokeStyle = '#32b8c6';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                const needleAngle = (gameState.cooldownRemaining / COOLDOWN_DURATION) * Math.PI * 2;
+                ctx.strokeStyle = gameState.cooldownRemaining <= 0.1 ? '#2db846' : '#ffcc00';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(needleAngle - Math.PI / 2) * 6, Math.sin(needleAngle - Math.PI / 2) * 6);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(gameState.aimAngle) * 28, Math.sin(gameState.aimAngle) * 28);
+                ctx.stroke();
+
+                ctx.restore();
+
+                if (gameState.isRunning && (keys['w'] || keys['a'] || keys['s'] || keys['d'] || keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'])) {
+                    ctx.strokeStyle = 'rgba(50, 184, 198, 0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(barrel.position.x, barrel.position.y);
+                    ctx.lineTo(
+                        barrel.position.x + Math.cos(gameState.aimAngle) * 200,
+                        barrel.position.y + Math.sin(gameState.aimAngle) * 200
+                    );
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                ctx.fillStyle = 'rgba(50, 184, 198, 0.2)';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'right';
+                for (let h = 100; h <= 800; h += 100) {
+                    const y = canvas.height - h;
+                    ctx.fillText(h + 'm', canvas.width - 10, y);
+                }
+            }
+
+            function gameLoop() {
+                Engine.update(engine);
+                updateAiming();
+                updateGameState();
+                render();
+                requestAnimationFrame(gameLoop);
+            }
+
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight - 120;
+            });
+
+            gameLoop();
+        }
+
+        waitForMatter();
+    </script>
+</body>
+</html>
