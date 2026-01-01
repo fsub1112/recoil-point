@@ -142,6 +142,21 @@
             color: #32b8c6;
             z-index: 100;
         }
+
+        .error-msg {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(200, 100, 50, 0.9);
+            padding: 20px 40px;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            text-align: center;
+            z-index: 2000;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -179,6 +194,7 @@
 
     <div class="indicator" id="layer">LAYER 1</div>
     <div class="aim-indicator" id="aim">AIM: UP</div>
+    <div class="error-msg" id="error">⚠️ Physics engine blocked by browser.<br>Try disabling tracking protection for this page.</div>
 
     <div id="menu" class="overlay">
         <h1>RECOIL POINT</h1>
@@ -199,7 +215,8 @@
         <button onclick="restartGame()">TRY AGAIN</button>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/2.0.19/matter.min.js"></script>
+    <!-- Try multiple CDN sources -->
+    <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -215,60 +232,76 @@
         let gameRunning = false;
         let maxHeight = 0;
         let cooldown = 0;
-        let aimAngle = -Math.PI / 2; // Up
+        let aimAngle = -Math.PI / 2;
         const keys = {};
+        let initAttempts = 0;
 
         const COOLDOWN_TIME = 1.5;
         const IMPULSE_SOLID = 25;
         const IMPULSE_AIR = 8;
 
+        function showError() {
+            document.getElementById('error').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('error').style.display = 'none';
+            }, 5000);
+        }
+
         function initPhysics() {
+            initAttempts++;
+            
             if (typeof Matter === 'undefined') {
-                setTimeout(initPhysics, 100);
+                if (initAttempts < 50) {
+                    setTimeout(initPhysics, 100);
+                } else {
+                    showError();
+                }
                 return;
             }
 
-            engine = Matter.Engine.create();
-            world = engine.world;
-            world.gravity.y = 30;
+            try {
+                engine = Matter.Engine.create();
+                world = engine.world;
+                world.gravity.y = 30;
 
-            // Create barrel
-            barrel = Matter.Bodies.circle(canvas.width / 2, 100, 20, {
-                density: 0.04,
-                friction: 0.5,
-                restitution: 0.2
-            });
-            Matter.World.add(world, barrel);
+                barrel = Matter.Bodies.circle(canvas.width / 2, 100, 20, {
+                    density: 0.04,
+                    friction: 0.5,
+                    restitution: 0.2
+                });
+                Matter.World.add(world, barrel);
 
-            // Create ground
-            ground = Matter.Bodies.rectangle(
-                canvas.width / 2, 
-                canvas.height - 20, 
-                canvas.width, 
-                40, 
-                { isStatic: true }
-            );
-            Matter.World.add(world, ground);
+                ground = Matter.Bodies.rectangle(
+                    canvas.width / 2, 
+                    canvas.height - 20, 
+                    canvas.width, 
+                    40, 
+                    { isStatic: true }
+                );
+                Matter.World.add(world, ground);
 
-            // Create platforms
-            const platformData = [
-                [200, 150, 150, 20],
-                [canvas.width - 200, 220, 150, 20],
-                [canvas.width / 2, 320, 120, 20],
-                [150, 420, 140, 20],
-                [canvas.width - 150, 500, 130, 20],
-                [canvas.width / 2 + 50, 600, 120, 20],
-                [250, 700, 110, 20]
-            ];
+                const platformData = [
+                    [200, 150, 150, 20],
+                    [canvas.width - 200, 220, 150, 20],
+                    [canvas.width / 2, 320, 120, 20],
+                    [150, 420, 140, 20],
+                    [canvas.width - 150, 500, 130, 20],
+                    [canvas.width / 2 + 50, 600, 120, 20],
+                    [250, 700, 110, 20]
+                ];
 
-            platformData.forEach(([x, y, w, h]) => {
-                const platform = Matter.Bodies.rectangle(x, y, w, h, { isStatic: true });
-                platforms.push(platform);
-                Matter.World.add(world, platform);
-            });
+                platformData.forEach(([x, y, w, h]) => {
+                    const platform = Matter.Bodies.rectangle(x, y, w, h, { isStatic: true });
+                    platforms.push(platform);
+                    Matter.World.add(world, platform);
+                });
 
-            console.log('Physics initialized');
-            gameLoop();
+                console.log('✅ Physics engine ready!');
+                gameLoop();
+            } catch (err) {
+                console.error('Physics init error:', err);
+                showError();
+            }
         }
 
         function startGame() {
@@ -278,9 +311,11 @@
             maxHeight = 0;
             cooldown = 0;
             
-            Matter.Body.setPosition(barrel, { x: canvas.width / 2, y: 100 });
-            Matter.Body.setVelocity(barrel, { x: 0, y: 0 });
-            Matter.Body.setAngularVelocity(barrel, 0);
+            if (barrel) {
+                Matter.Body.setPosition(barrel, { x: canvas.width / 2, y: 100 });
+                Matter.Body.setVelocity(barrel, { x: 0, y: 0 });
+                Matter.Body.setAngularVelocity(barrel, 0);
+            }
         }
 
         function restartGame() {
@@ -309,12 +344,11 @@
         }
 
         function fire() {
-            if (cooldown > 0 || !gameRunning) return;
+            if (cooldown > 0 || !gameRunning || !barrel) return;
 
             const dx = Math.cos(aimAngle);
             const dy = Math.sin(aimAngle);
 
-            // Check if near platform
             let nearPlatform = false;
             for (let p of platforms) {
                 const dist = Math.sqrt(
@@ -340,7 +374,7 @@
         }
 
         function update() {
-            if (!gameRunning) return;
+            if (!gameRunning || !barrel) return;
 
             updateAim();
 
@@ -349,7 +383,6 @@
             const height = Math.max(0, canvas.height - barrel.position.y);
             maxHeight = Math.max(maxHeight, height);
 
-            // Check fall
             if (barrel.position.y > canvas.height + 50) {
                 gameRunning = false;
                 document.getElementById('gameOverHeight').textContent = `Reached ${Math.floor(maxHeight)}m`;
@@ -365,14 +398,12 @@
                 document.getElementById('gameOver').classList.remove('hidden');
             }
 
-            // Check victory
             if (height >= 800) {
                 gameRunning = false;
-                alert('YOU WON! You reached the serene island.');
+                alert('🎉 YOU WON! You reached the serene island!');
                 document.getElementById('menu').classList.remove('hidden');
             }
 
-            // Update UI
             document.getElementById('height').textContent = Math.floor(height) + 'm';
             document.getElementById('maxHeight').textContent = Math.floor(maxHeight) + 'm';
             document.getElementById('velocity').textContent = Math.abs(Math.floor(barrel.velocity.y)) + ' m/s';
@@ -383,13 +414,14 @@
         }
 
         function render() {
+            if (!barrel) return;
+
             const bgColors = ['#2a1a15', '#1a2a2a', '#2a1a2a', '#0a0a15'];
             const height = Math.max(0, canvas.height - barrel.position.y);
             const layer = Math.min(3, Math.floor(height / 200));
             ctx.fillStyle = bgColors[layer];
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw platforms
             ctx.fillStyle = '#8b5a2b';
             ctx.strokeStyle = '#c86432';
             ctx.lineWidth = 2;
@@ -403,7 +435,6 @@
                 ctx.stroke();
             });
 
-            // Draw ground
             ctx.fillStyle = '#3d3d3d';
             const gv = ground.vertices;
             ctx.beginPath();
@@ -412,7 +443,6 @@
             ctx.closePath();
             ctx.fill();
 
-            // Draw barrel
             ctx.save();
             ctx.translate(barrel.position.x, barrel.position.y);
             ctx.rotate(barrel.angle);
@@ -425,7 +455,6 @@
             ctx.fill();
             ctx.stroke();
 
-            // Blunderbuss
             ctx.strokeStyle = '#666';
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -435,7 +464,6 @@
 
             ctx.restore();
 
-            // Aim line
             if (gameRunning && (keys['w'] || keys['a'] || keys['s'] || keys['d'] || 
                 keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'])) {
                 ctx.strokeStyle = 'rgba(50, 184, 198, 0.4)';
@@ -451,7 +479,6 @@
                 ctx.setLineDash([]);
             }
 
-            // Height markers
             ctx.fillStyle = 'rgba(50, 184, 198, 0.2)';
             ctx.font = '10px monospace';
             ctx.textAlign = 'right';
@@ -467,7 +494,6 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // Input
         document.addEventListener('keydown', e => {
             keys[e.key.toLowerCase()] = true;
             keys[e.key] = true;
@@ -490,7 +516,7 @@
         });
 
         // Start initialization
-        initPhysics();
+        setTimeout(initPhysics, 100);
     </script>
 </body>
 </html>
